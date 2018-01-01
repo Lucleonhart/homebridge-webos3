@@ -6,7 +6,7 @@ module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
   Characteristic = homebridge.hap.Characteristic;
 
-  homebridge.registerAccessory('homebridge-webos3', 'webos3', webos3Accessory);
+  homebridge.registerAccessory('homebridge-webos3-light', 'webos3-light', webos3Accessory);
 }
 
 function webos3Accessory(log, config, api) {
@@ -63,24 +63,13 @@ function webos3Accessory(log, config, api) {
     self.connected = false;
   });
 
-  this.powerService = new Service.Switch(this.name, "powerService");
-  this.volumeService = new Service.Lightbulb(this.name, "volumeService");
+  this.service = new Service.Switch(this.name, "service");
 
-  this.powerService
+  this.service
     .getCharacteristic(Characteristic.On)
     .on('get', this.getState.bind(this))
-    .on('set', this.setState.bind(this));
-  
-   this.volumeService
-    .getCharacteristic(Characteristic.On)
-    .on('get', this.getMuteState.bind(this))
-    .on('set', this.setMuteState.bind(this));
-  
-  this.volumeService
-     .addCharacteristic(new Characteristic.Brightness())
-     .on('get', this.getVolume.bind(this))
-     .on('set', this.setVolume.bind(this));
-  
+    .on('set', this.setState.bind(this));  
+	
   this.accessoryInformationService = new Service.AccessoryInformation()
     .setCharacteristic(Characteristic.Manufacturer, 'LG Electronics Inc.')
     .setCharacteristic(Characteristic.Model, 'webOS TV')
@@ -102,42 +91,7 @@ webos3Accessory.prototype.checkTVState = function() {
       self.connected = true;
     }
     //self.log('webOS3 TV state: %s', self.connected ? "On" : "Off");
-										  
   });
-}
-
-webos3Accessory.prototype.checkMuteState = function(callback) {
-    var self = this;
-    if (self.connected) {
-      lgtv.request('ssap://audio/getStatus', function (err, res) {
-        if (!res || err){
-          self.connected = false ;
-          lgtv.disconnect();
-          return callback(null, false);
-        }
-        self.log('webOS3 TV muted: %s', res.mute ? "Yes" : "No");   
-       return callback(null, !res.mute);
-      });
-    }else{
-      return callback(null, false);
-    }
-}
-
-webos3Accessory.prototype.checkVolumeLevel = function(callback) {
-    var self = this;
-    if (self.connected) {
-      lgtv.request('ssap://audio/getVolume', function (err, res) {
-        if (!res || err){
-          self.connected = false ;
-          lgtv.disconnect();
-          return callback(null, false);
-        }
-        self.log('webOS3 TV volume: ' + res.volume);   
-       return callback(null, parseInt(res.volume));
-      });
-    }else{
-      return callback(null, false);
-    }
 }
 
 webos3Accessory.prototype.checkWakeOnLan = function(callback) {
@@ -180,8 +134,6 @@ webos3Accessory.prototype.setState = function(state, callback) {
         if (err) return callback(null, false);
         lgtv.disconnect();
         self.connected = false ;
-        var muteChar = self.volumeService.getCharacteristic(Characteristic.On);
-        muteChar.updateValue(false);
         return callback(null, true);
       })
     } else {
@@ -190,43 +142,9 @@ webos3Accessory.prototype.setState = function(state, callback) {
   }
 }
 
-
-webos3Accessory.prototype.getMuteState = function(callback) {
-    var self = this;
-    setTimeout(self.checkMuteState.bind(self, callback), 460);
-}
-
-webos3Accessory.prototype.setMuteState = function(state, callback) {
-    var self = this;
-    if (self.connected) {
-      lgtv.request('ssap://audio/setMute', {mute: !state});  
-      return callback(null, true);
-    }else {
-      return callback(new Error('webOS3 is not connected'))
-    }
-}
-
-
-webos3Accessory.prototype.getVolume = function(callback) {
-    var self = this;
-    setTimeout(self.checkVolumeLevel.bind(self, callback), 470);
-}
-
-webos3Accessory.prototype.setVolume = function(level, callback) {
-    var self = this;
-    if (self.connected) {
-      lgtv.request('ssap://audio/setVolume', {volume: level});  
-      return callback(null, level);
-     }else {
-      return callback(new Error('webOS3 is not connected'))
-    }
-}
-
-
 webos3Accessory.prototype.getServices = function() {
   return [
-    this.powerService,
-    this.volumeService,
+    this.service,
 	this.accessoryInformationService
   ]
 }
