@@ -18,6 +18,7 @@ function webos3Accessory(log, config, api) {
   this.keyFile = config['keyFile'];
   this.connected = false;
   this.checkCount = 0;
+  this.requestInterval = null;
 
   lgtv = require('lgtv2')({
     url: this.url,
@@ -31,15 +32,23 @@ function webos3Accessory(log, config, api) {
   lgtv.on('connect', function() {
     self.log('webOS3 connected to TV');
     self.connected = true;
+	
+	requestInterval = setInterval(self.checkTVState.bind(self), 5000);
   });
   
   lgtv.on('close', function() {
     self.log('webOS3 disconnected from TV');
+	if(requestInterval)
+	  clearInterval(requestInterval);
+  
     self.connected = false;
   });
   
   lgtv.on('error', function(error) {
     self.log('webOS3 error %s', error);
+	if(requestInterval)
+	  clearInterval(requestInterval);
+  
     self.connected = false;
     //setTimeout(lgtv.connect(this.url), 5000);
   });
@@ -72,18 +81,28 @@ function webos3Accessory(log, config, api) {
      .on('get', this.getVolume.bind(this))
      .on('set', this.setVolume.bind(this));
   
+  this.accessoryInformationService = new Service.AccessoryInformation()
+    .setCharacteristic(Characteristic.Manufacturer, 'LG Electronics Inc.')
+    .setCharacteristic(Characteristic.Model, 'webOS TV')
+    .setCharacteristic(Characteristic.SerialNumber, '-');
 }
 
-webos3Accessory.prototype.checkTVState = function(callback) {
+webos3Accessory.prototype.checkTVState = function() {
   var self = this;
   ping.sys.probe(this.ip, function(isAlive) {
     if (!isAlive) {
+	  if(self.connected) {
+	    self.service.getCharacteristic(Characteristic.On).setValue(false);
+	  }
       self.connected = false;
     } else {
+	  if(!self.connected) {
+	    self.service.getCharacteristic(Characteristic.On).setValue(true);
+	  }
       self.connected = true;
     }
-    self.log('webOS3 TV state: %s', self.connected ? "On" : "Off");
-    return callback(null, self.connected);
+    //self.log('webOS3 TV state: %s', self.connected ? "On" : "Off");
+										  
   });
 }
 
@@ -138,9 +157,8 @@ webos3Accessory.prototype.checkWakeOnLan = function(callback) {
 }
 
 webos3Accessory.prototype.getState = function(callback) {
-  lgtv.connect(this.url);
   var self = this;
-  setTimeout(self.checkTVState.bind(self, callback), 450);
+  return callback(null, self.connected);
 }
 
 webos3Accessory.prototype.setState = function(state, callback) {
@@ -208,7 +226,8 @@ webos3Accessory.prototype.setVolume = function(level, callback) {
 webos3Accessory.prototype.getServices = function() {
   return [
     this.powerService,
-    this.volumeService
+    this.volumeService,
+	this.accessoryInformationService
   ]
 }
 
